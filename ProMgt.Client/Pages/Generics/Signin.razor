@@ -1,0 +1,130 @@
+﻿@page "/signin"
+@using ProMgt.Client.Models
+@using System.ComponentModel.DataAnnotations
+@inject NavigationManager NavigationManager
+@inject HttpClient HttpClient
+
+
+<PageTitle>Sign in</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="d-flex justify-center align-center" Style="height: 100vh;">
+    <MudPaper Elevation="0" Outlined="true" Class="pa-8 rounded-xl">
+        <EditForm Model="@Input" OnValidSubmit="SignInHandler">
+            <MudGrid Spacing="3">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+
+                <MudItem xs="12">
+                    <div class="d-flex justify-center mb-8">
+                        <MudIcon Icon="@CustomIcons.ProMgtLogo" Color="Color.Primary" Size="Size.Large" ViewBox="0 0 500 500" Style="width: 64px; height: 64px;" />
+                    </div>
+                </MudItem>
+
+                <MudItem xs="12">
+                    <MudText Align="Align.Center" Typo="Typo.h5" Class="mb-4">Sign in to ProMgt</MudText>
+                </MudItem>
+
+                <MudItem xs="12">
+                    <MudTextField Label="Email"
+                                  Variant="Variant.Outlined"
+                                  @bind-Value="Input.Email"
+                                  For="@(() => Input.Email)" />
+                </MudItem>
+
+                <MudItem xs="12">
+                    <MudTextField Label="Password"
+                                  Variant="Variant.Outlined"
+                                  @bind-Value="Input.Password"
+                                  For="@(() => Input.Password)"
+                                  InputType="InputType.Password" />
+                </MudItem>
+
+                <MudItem xs="12">
+                    <MudCheckBox Color="Color.Primary"
+                                 For="@(() => Input.RememberMe)"
+                                 @bind-Value="Input.RememberMe">Remember me</MudCheckBox>
+                </MudItem>
+
+                <MudItem xs="12" Class="d-flex justify-center">
+                    <MudButton ButtonType="ButtonType.Submit"
+                               Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               Size="Size.Large"
+                               FullWidth="true">Sign in</MudButton>
+                </MudItem>
+
+                <MudItem xs="12" Class="d-flex flex-column align-center mt-4">
+                    <MudLink Href="Account/ForgotPassword" Class="mb-2">Forgot your password?</MudLink>
+                    <MudLink Href="@(NavigationManager.GetUriWithQueryParameters("/signup", new Dictionary<string, object?> { ["ReturnUrl"] = ReturnUrl }))">Register as a new user</MudLink>
+                </MudItem>
+            </MudGrid>
+        </EditForm>
+    </MudPaper>
+</MudContainer>
+
+<style>
+
+</style>
+@code {
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }    
+    private string? errorMessage;
+
+    [SupplyParameterFromForm]
+    public SigninModel Input { get; set; } = new SigninModel()
+    {
+
+    };
+
+    public async Task SignInHandler()
+    {
+        try
+        {
+            var loginData = new SigninModel
+                {
+                    Email = Input.Email,
+                    Password = Input.Password,
+                    RememberMe = Input.RememberMe
+                };
+            var response = await HttpClient.PostAsJsonAsync<SigninModel>("api/auth/signin", loginData);
+            if (response.IsSuccessStatusCode)
+            {
+                var redirectUrl = ReturnUrl ?? "/";
+                StateHasChanged();
+                NavigationManager.NavigateTo("/dashboard", true);
+                
+            }
+            else
+            {
+                var responseContent = await response.Content.ReadAsStringAsync();
+                if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                {
+                    errorMessage = "Error: Invalid Login attempt!";
+                }
+                else if (response.StatusCode == System.Net.HttpStatusCode.Locked)
+                {
+                    // TODO: Create a Generic lock out razor page.
+                    NavigationManager.NavigateTo("generics/lockout");
+                }
+                else
+                {
+                    errorMessage = $"Error: An unexpected error occured. Response: { responseContent }";
+                }
+            }
+        }
+        catch (HttpRequestException hre)
+        {
+            errorMessage = $"Error: { hre.Message }";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Unexpected error: {ex.Message}";
+        }
+    }
+    public string GetClass()
+    {
+        string newClass = string.Empty;
+        newClass = "signup-bg rounded-l-xl d-flex flex-column object-contain align-center justify-center";
+        return newClass;
+    }
+}

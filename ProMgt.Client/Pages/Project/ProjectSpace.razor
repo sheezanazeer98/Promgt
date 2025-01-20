@@ -1,0 +1,735 @@
+﻿@page "/project-space/{ProjectId:int}"
+@using System.Net.Http.Json
+@using System.Text.Json
+@using ProMgt.Client.Infrastructure.HelperFunctions
+@using ProMgt.Client.Components.ProjectTitleBarLayout
+@using ProMgt.Client.Components.Task
+@inject ThemeService ThemeService
+@inject HttpClient HttpClient
+@inject IDialogService IDialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+@inject ProjectService ProjectService
+@attribute [Authorize]
+
+<MudThemeProvider IsDarkMode="@(ThemeService.CurrentTheme == ProMgtTheme.DarkTheme)" Theme="@ThemeService.CurrentTheme" />
+<ProjectTitleBar ProjectId="@ProjectId" />
+<MudDivider DividerType="DividerType.Middle" Class="mx-0" />
+
+@* Mud drawer for Fields *@
+<MudDrawerContainer Class="mud-height-full">
+    <MudDrawer @bind-Open="@_openInfoDrawer" Width="30%" Fixed="true" Anchor="Anchor.End" Style="z-index:1301!important; position: fixed" Variant="@DrawerVariant.Persistent">
+        <MudDrawerHeader Class="d-flex pa-4 align-center">
+            <MudText Typo="Typo.h6">Customize</MudText>
+            <MudSpacer />
+            <MudIconButton Class="pa-0" OnClick="@ToggleDrawerHandler" Icon="@Icons.Material.Rounded.ChevronRight"></MudIconButton>
+        </MudDrawerHeader>
+        <MudDivider />
+        <MudPaper Elevation="0" Class="pa-4">
+            <MudStack>
+                <MudButton Size="Size.Small" Class="d-flex justify-start" OnClick="@AddStatus" FullWidth="true">
+                    <MudStack Class="py-2" Style="width: inherit;">
+                        <MudStack Row="true" Class="ml-1" Style="justify-content: flex-start; align-items: center;">
+                            <MudText>Status</MudText>
+                            <MudChip Size="Size.Small" T="string" IconColor="Color.Error">
+                                <MudIcon Icon="@Icons.Material.Filled.Add"></MudIcon>
+                            </MudChip>
+                        </MudStack>
+                    </MudStack>
+                </MudButton>
+                <MudDivider />
+                <MudItem Class="d-flex align-center flex-wrap">
+                    @foreach (var status in TaskStatuses)
+                    {
+                        <MudChip Size="Size.Small"
+                                 Icon="@Icons.Material.Filled.Circle"
+                                 IconColor="Color.Default"
+                                 T="string"
+                                 Variant="Variant.Text"
+                                 Color="Color.Default"
+                                 OnClose="() => DeleteTaskStatusHandler(status.Id)"
+                                 CloseIcon="@Icons.Material.Rounded.Close"
+                                 Style="@($"--mud-palette-default: {status.HexColor}; --text-color:{status.HexColor}; background-color: {GetBackgroundColor(status.HexColor)}; color: var(--text-color);")">
+                            @status.Name.ToUpper()
+                        </MudChip>
+                    }
+                </MudItem>
+            </MudStack>
+        </MudPaper>
+        <MudDivider />
+        <MudPaper Elevation="0" Class="pa-4">
+            <MudStack>
+                <MudButton Size="Size.Small" Class="d-flex justify-start" OnClick="@AddPriority" FullWidth="true">
+                    <MudStack Class="py-2" Style="width: inherit;">
+                        <MudStack Row="true" Class="ml-1" Style="justify-content: flex-start; align-items: center;">
+                            <MudText>Priority</MudText>
+                            <MudChip Size="Size.Small" T="string" IconColor="Color.Error">
+                                <MudIcon Icon="@Icons.Material.Filled.Add"></MudIcon>
+                            </MudChip>
+                        </MudStack>
+                    </MudStack>
+                </MudButton>
+                <MudDivider />
+                <MudItem Class="d-flex align-center flex-wrap">
+                    @foreach (var priority in Priorities)
+                    {
+                        <MudChip Size="Size.Small"
+                                 Icon="@Icons.Material.Filled.Circle"
+                                 IconColor="Color.Default"
+                                 T="string"
+                                 Variant="Variant.Text"
+                                 Color="Color.Default"
+                                 OnClose="() => DeletePriorityHandler(priority.Id)"
+                                 CloseIcon="@Icons.Material.Rounded.Close"
+                                 Style="@($"--mud-palette-default: {priority.HexColor}; --text-color:{priority.HexColor}; background-color: {GetBackgroundColor(priority.HexColor)}; color: var(--text-color);")">
+                            @priority.Name.ToUpper()
+                        </MudChip>
+                    }
+                </MudItem>
+            </MudStack>
+        </MudPaper>
+        <MudDivider />
+    </MudDrawer>
+</MudDrawerContainer>
+@* Mud Drawer End *@
+
+@* Mud Drawer Task Info *@
+<MudDrawerContainer Class="mud-height-full">
+    <MudDrawer @bind-Open="@_openTaskInfoDrawer" Width="30%" Fixed="true" Anchor="Anchor.End" Style="z-index:1301!important; position: fixed" Variant="@DrawerVariant.Persistent">        
+        <TaskInfoContainer ProjectId="@ProjectId" TaskId="@_currentTaskId" />
+    </MudDrawer>
+</MudDrawerContainer>
+<MudDivider DividerType="DividerType.Middle" />
+
+<ProjectNavMenu ProjectId="ProjectId" />
+
+<!-- #region name -->
+
+<style>
+
+    .mud-divider-fullwidth {
+        flex-grow: 0;
+    }
+
+    .custom-hr {
+        height: 1px;
+        background-color: #dddddd;
+    }
+
+    .custom-hr-field {
+        height: 3px;
+        background-color: #F4511E;
+    }
+
+    .project-background {
+        background: #00000012;
+        padding-top: 5px;
+        padding-bottom: 5px;
+        padding-left: 15px;
+        padding-right: 15px;
+        border-radius: 8px;
+        color: #D2CDDB;
+        transition: background 0.3s ease, transform 0.3s ease;
+    }
+
+        .project-background:hover {
+            background: #00000050; /* Darker background on hover */
+        }
+
+    .mud-container-maxwidth-lg {
+        max-width: none !important;
+    }
+
+    .mud-container--gutters {
+        padding: 0 !important;
+    }
+
+    .custom-item {
+        max-width: none !important;
+        padding: 15px !important;
+    }
+
+    .app-bar-style {
+        padding: 15px;
+        box-shadow: none;
+    }
+
+    .dark-mode {
+        background-color: #373740;
+    }
+
+    .light-mode {
+        background-color: #673AB7;
+    }
+
+</style>
+
+<!-- #endregion -->
+@code {
+    #region variable declaration
+
+    [Parameter]
+    public int ProjectId { get; set; }
+    public int _progressNumber { get; set; } = 0;
+    private int days = 0;
+    private int _currentTaskId;
+    public bool _openInfoDrawer { get; set; } = false;
+    public bool _openTaskInfoDrawer { get; set; } = false;
+    public string CollapseBg { get; set; } = string.Empty;
+    public string ProjectName { get; set; } = string.Empty;
+    public string? ProjectDescription { get; set; } = string.Empty;
+    private string? backColor;
+    private string errorMessage = string.Empty;
+    private string AppBarStyle { get; set; } = string.Empty;
+    public DateTime? DeadLine { get; set; }
+    public DateTime? DbDeadLine { get; set; }
+    public DateTime currentDate = DateTime.Now;
+    public ProjectResponse Project { get; set; } = new();
+    public List<TaskResponse> TaskResponses { get; set; } = new();
+    public List<TaskDisplay> TasksList { get; set; } = new();
+    public List<PriorityResponse>? Priorities { get; set; } = new();
+    public List<TaskStatusResponse>? TaskStatuses { get; set; } = new();
+    IEnumerable<TaskResponse> Tasks = new List<TaskResponse>();
+
+    #endregion
+
+    private string GetBackgroundClass()
+    {
+        return ThemeService.IsDarkMode() ? "dark-mode" : "light-mode";
+    }
+
+    private string GroupClassFunc(GroupDefinition<TaskResponse> item)
+    {
+        return item.Grouping.Key?.ToString() == "Nonmetal" || item.Grouping.Key?.ToString() == "Other"
+                ? "mud-theme-warning"
+                : string.Empty;
+    }
+
+    #region Initialize
+  
+    protected async override Task OnInitializedAsync()
+    {
+        ThemeService.OnThemeChanged += HandleThemeChange;
+
+        CollapseBg = $"background: {ThemeService.GetPrimaryColorHex(ThemeService.CurrentTheme)};";
+        ProjectService.OnTaskCompletedChanged += TaskCompletedChangedHandler;
+        _openInfoDrawer = ProjectService.IsDrawerOpen();
+        ProjectService.OnDrawerOpenChange += ToggleDrawerHandler;
+        ProjectService.OnTaskInfoDrawerOpen += ToggleTaskInfoDrawer;
+        ProjectService.OnTaskInfoDrawerClose += CloseTaskInfoDrawer;
+        ProjectService.OnTaskDeleted += CloseTaskInfoDrawer;
+        ProjectService.OnTaskDeleted += GetTasks;
+        await GetTaskPriorities();
+        await GetTaskStatuses();
+        await GetProject();
+        await GetTasks();
+        StateHasChanged();
+        await base.OnInitializedAsync();
+    }
+    #endregion
+
+    #region Toggles and Collapses       
+    // This Toggles the drawer    
+    private async Task ToggleDrawerHandler()
+    {
+        _openInfoDrawer = !_openInfoDrawer;
+        await Task.CompletedTask;
+        StateHasChanged();
+    }
+    #endregion
+
+    private async Task ToggleTaskInfoDrawer(int projectId, int taskId)
+    {
+        if (_currentTaskId == taskId)
+        {
+            await CloseTaskInfoDrawer();        
+        }
+        else
+        {
+            _currentTaskId = taskId;
+            _openTaskInfoDrawer = true;           
+        }    
+        await Task.CompletedTask;
+        StateHasChanged();
+    }
+
+    private async Task CloseTaskInfoDrawer()
+    {
+        _openTaskInfoDrawer = false;
+        _currentTaskId = 0;
+        await Task.CompletedTask;
+        StateHasChanged();
+    }
+
+    #region Theme Change handler
+    /// <summary>
+    /// This handles the theme change
+    /// </summary>
+    /// <returns></returns>
+    private async Task HandleThemeChange()
+    {
+        backColor = $"background: {ThemeService.GetPrimaryColorHex(ThemeService.CurrentTheme)};";
+        AppBarStyle = $"background: {ThemeService.GetPrimaryColorHex(ThemeService.CurrentTheme)}; padding: 15px; box-shadow: none;";
+        CollapseBg = $"background: {ThemeService.GetPrimaryColorHex(ThemeService.CurrentTheme)};";
+        await InvokeAsync(StateHasChanged);
+    }
+    #endregion
+
+    #region Get and Delete a project
+    // This Gets the project    
+    public async Task GetProject()
+    {
+        try
+        {
+            var response = await HttpClient.GetFromJsonAsync<ProjectResponse>($"api/project/{ProjectId}");
+            Project = response ?? new ProjectResponse();
+
+            DbDeadLine = Project.DeadLine;
+            DeadLine = Project.DeadLine;
+
+            TimeSpan? difference = DeadLine - currentDate;
+            days = difference!.Value.Days;
+            ProjectName = Project.Name;
+            ProjectDescription = Project.Description;
+            DeadLine = Project.DeadLine;
+            StateHasChanged();
+
+        }
+        catch (HttpRequestException ex)
+        {
+            Console.WriteLine($"Request error: {ex.Message}");
+        }
+        catch (NotSupportedException ex)
+        {
+            Console.WriteLine($"Content type error: {ex.Message}");
+        }
+        catch (JsonException ex)
+        {
+            Console.WriteLine($"JSON error: {ex.Message}");
+        }
+    }
+
+    #endregion
+
+    #region Patch Project fields
+    /// <summary>
+    /// This updates the bame
+    /// </summary>
+    /// <returns></returns>
+    private async Task PatchName()
+    {
+        try
+        {
+            var response = await HttpClient.PatchAsync($"/api/project/{ProjectId}/name", JsonContent.Create(ProjectName));
+
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add("Project name updated successfully!", MudBlazor.Severity.Success);
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                Snackbar.Add("Project not found.", MudBlazor.Severity.Error);
+            }
+            else
+            {
+                Snackbar.Add("An error occurred while updating the project name.", MudBlazor.Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error: {ex}");
+            Snackbar.Add("An error occurred while updating the project name.", MudBlazor.Severity.Error);
+        }
+    }
+
+    /// <summary>
+    /// This updates the description
+    /// </summary>
+    /// <returns></returns>
+    private async Task PatchDescription()
+    {
+        try
+        {
+            var response = await HttpClient.PatchAsync($"/api/project/{ProjectId}/description", JsonContent.Create(ProjectDescription));
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add("Project description updated successfully!", MudBlazor.Severity.Success);
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                Snackbar.Add("Project not found.", MudBlazor.Severity.Error);
+            }
+            else
+            {
+                Snackbar.Add("An error occurred while updating the project description.", MudBlazor.Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error: {ex}");
+            Snackbar.Add("An error occurred while updating the project description.", MudBlazor.Severity.Error);
+        }
+    }
+
+    /// <summary>
+    /// This updates the date
+    /// </summary>
+    /// <returns></returns>
+    private async Task CloseHandler()
+    {
+        await Task.CompletedTask;
+        if (DeadLine < currentDate)
+        {
+            Snackbar.Add("Pick a valid date", MudBlazor.Severity.Error);
+            DeadLine = DbDeadLine;
+            return;
+        }
+        if (DbDeadLine == DeadLine)
+        {
+            return;
+        }
+        else
+        {
+            try
+            {
+                var response = await HttpClient.PatchAsync($"/api/project/{ProjectId}/deadline", JsonContent.Create(DeadLine));
+
+                if (response.IsSuccessStatusCode)
+                {
+                    Snackbar.Add("Project deadline updated successfully!", MudBlazor.Severity.Success);
+                }
+                else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    Snackbar.Add("Project not found.", MudBlazor.Severity.Error);
+                }
+                else
+                {
+                    Snackbar.Add("An error occurred while updating the project deadline.", MudBlazor.Severity.Error);
+                }
+
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Error: {ex}");
+                Snackbar.Add("An error occurred while updating the project date.", MudBlazor.Severity.Error);
+            }
+        }
+    }
+    #endregion Patch Project fields
+
+    #region Add and Get Tasks and Get progress and Task completed Handler.  
+    // This gets tasks.
+    public async Task GetTasks()
+    {
+        try
+        {
+            TasksList.Clear();
+            var response = await HttpClient.GetFromJsonAsync<List<TaskResponse>>($"api/task/projecttask/{ProjectId}");
+            TaskResponses = (response ?? new List<TaskResponse>())
+                .OrderByDescending(t => t.DateOfCreation)
+                .ToList();
+
+        }
+        catch (HttpRequestException ex)
+        {
+            Console.WriteLine($"Request error: {ex.Message}");
+        }
+        catch (NotSupportedException ex)
+        {
+            Console.WriteLine($"Content type error: {ex.Message}");
+        }
+        catch (JsonException ex)
+        {
+            Console.WriteLine($"JSON error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// This recalculates when the task status is changed.
+    /// </summary>
+    /// <returns></returns>
+    private async Task TaskCompletedChangedHandler()
+    {
+        await GetTasks();
+        StateHasChanged();
+    }
+    #endregion
+
+    #region Priority: Add, Get all and Delete
+    /// <summary>
+    /// This Opens the Add Priority Dialog
+    /// </summary>
+    /// <returns></returns>
+    private async Task AddPriority()
+    {
+
+        var options = new DialogOptions
+            {
+                CloseOnEscapeKey = true,
+                CloseButton = true,
+                MaxWidth = MaxWidth.Small,
+                FullWidth = true
+            };
+
+        var dialogResponse = await IDialogService.ShowAsync<EditPriorityDialog>("Edit status", options);
+
+        var result = await dialogResponse.Result;
+        PriorityInputModel priorityInput = new();
+
+        if (result != null && !result.Canceled)
+        {
+            priorityInput = result.Data as PriorityInputModel ?? new();
+            priorityInput.projectId = ProjectId;
+        }
+        try
+        {
+            var response = await HttpClient.PostAsJsonAsync<PriorityInputModel>("api/field/createpriority", priorityInput);
+            if (response.IsSuccessStatusCode)
+            {
+
+                Snackbar.Add("New Priority added successfully", MudBlazor.Severity.Success);
+                await GetTaskPriorities();
+                await ProjectService.TriggerFieldChanges();
+            }
+            else
+            {
+                errorMessage = $"Error: {response.ReasonPhrase}";
+            }
+
+        }
+        catch (HttpRequestException httpEx)
+        {
+            errorMessage = $"Request error: {httpEx.Message}";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"An unexpected error occurred: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// This gets all the priorities by project
+    /// </summary>
+    /// <returns></returns>
+    public async Task GetTaskPriorities()
+    {
+        try
+        {
+            var response = await HttpClient.GetFromJsonAsync<List<PriorityResponse>>($"api/field/projectpriority/{ProjectId}");
+            Priorities = (response ?? new List<PriorityResponse>())
+                            .ToList();
+
+            StateHasChanged();
+        }
+        catch (HttpRequestException ex)
+        {
+            Console.WriteLine($"Request error: {ex.Message}");
+        }
+        catch (NotSupportedException ex)
+        {
+            Console.WriteLine($"Content type error: {ex.Message}");
+        }
+        catch (JsonException ex)
+        {
+            Console.WriteLine($"JSON error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// This deletes the priority
+    /// </summary>
+    /// <param name="Id"></param>
+    /// <returns></returns>
+    private async Task DeletePriorityHandler(int Id)
+    {
+        try
+        {
+            var response = await HttpClient.DeleteAsync($"/api/field/deletepriority{Id}");
+
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add("Priority deleted successfully!", MudBlazor.Severity.Success);
+                await GetTaskPriorities();
+                await ProjectService.TriggerFieldChanges();
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                Snackbar.Add("Priority not found.", MudBlazor.Severity.Error);
+            }
+            else
+            {
+                Snackbar.Add($"Error: {response.ReasonPhrase}", MudBlazor.Severity.Error);
+            }
+
+            StateHasChanged();
+        }
+        catch (HttpRequestException ex)
+        {
+            Snackbar.Add($"Request error: {ex.Message}", MudBlazor.Severity.Error);
+
+        }
+        catch (NotSupportedException ex)
+        {
+            Snackbar.Add($"Content type error: {ex.Message}", MudBlazor.Severity.Error);
+
+        }
+        catch (JsonException ex)
+        {
+            Snackbar.Add($"JSON error: {ex.Message}", MudBlazor.Severity.Error);
+
+        }
+    }
+
+    #endregion
+
+    #region Status: Add, Get all and Delete
+    /// <summary>
+    /// This Opens the Add Status Dialog
+    /// </summary>
+    /// <returns></returns>
+    private async Task AddStatus()
+    {
+
+        var options = new DialogOptions
+            {
+                CloseOnEscapeKey = true,
+                CloseButton = true,
+                MaxWidth = MaxWidth.Small,
+                FullWidth = true
+            };
+
+        var dialogResponse = await IDialogService.ShowAsync<TaskStatusDialog>("Edit status", options);
+
+        var result = await dialogResponse.Result;
+        TaskStatusInputModel taskStatusInput = new();
+
+        if (result != null && !result.Canceled)
+        {
+            taskStatusInput = result.Data as TaskStatusInputModel ?? new();
+            taskStatusInput.ProjectId = ProjectId;
+        }
+        try
+        {
+            var response = await HttpClient.PostAsJsonAsync<TaskStatusInputModel>("api/field/createtaskstatus", taskStatusInput);
+            if (response.IsSuccessStatusCode)
+            {
+
+                Snackbar.Add("New Status added successfully", MudBlazor.Severity.Success);
+                await GetTaskStatuses();
+                await ProjectService.TriggerFieldChanges();
+            }
+            else
+            {
+                errorMessage = $"Error: {response.ReasonPhrase}";
+            }
+
+        }
+        catch (HttpRequestException httpEx)
+        {
+            errorMessage = $"Request error: {httpEx.Message}";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"An unexpected error occurred: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// This gets all the task statuses by project Id
+    /// </summary>
+    /// <returns></returns>
+    public async Task GetTaskStatuses()
+    {
+        try
+        {
+            var response = await HttpClient.GetFromJsonAsync<List<TaskStatusResponse>>($"api/field/projecttaskstatus/{ProjectId}");
+            TaskStatuses = (response ?? new List<TaskStatusResponse>())
+                            .ToList();
+
+            StateHasChanged();
+        }
+        catch (HttpRequestException ex)
+        {
+            Console.WriteLine($"Request error: {ex.Message}");
+        }
+        catch (NotSupportedException ex)
+        {
+            Console.WriteLine($"Content type error: {ex.Message}");
+        }
+        catch (JsonException ex)
+        {
+            Console.WriteLine($"JSON error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// This deletes the task status
+    /// </summary>
+    /// <param name="Id"></param>
+    /// <returns></returns>
+    private async Task DeleteTaskStatusHandler(int Id)
+    {
+        try
+        {
+            var response = await HttpClient.DeleteAsync($"/api/field/deletetaskstatus{Id}");
+
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add("Status deleted successfully!", MudBlazor.Severity.Success);
+                await GetTaskStatuses();
+                await ProjectService.TriggerFieldChanges();
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                Snackbar.Add("Status not found.", MudBlazor.Severity.Error);
+            }
+            else
+            {
+                Snackbar.Add($"Error: {response.ReasonPhrase}", MudBlazor.Severity.Error);
+            }
+
+            StateHasChanged();
+        }
+        catch (HttpRequestException ex)
+        {
+            Snackbar.Add($"Request error: {ex.Message}", MudBlazor.Severity.Error);
+
+        }
+        catch (NotSupportedException ex)
+        {
+            Snackbar.Add($"Content type error: {ex.Message}", MudBlazor.Severity.Error);
+
+        }
+        catch (JsonException ex)
+        {
+            Snackbar.Add($"JSON error: {ex.Message}", MudBlazor.Severity.Error);
+
+        }
+    }
+
+    #endregion
+
+    #region Helper functions
+    /// <summary>
+    /// This converts HexValue to RGB and gives us a color with 20% opacity for MudChip background.
+    /// </summary>
+    /// <param name="hexColor"></param>
+    /// <returns></returns>
+    private string GetBackgroundColor(string hexColor)
+    {
+        if (string.IsNullOrEmpty(hexColor) || !hexColor.StartsWith("#") || hexColor.Length != 7)
+        {
+            return "rgba(0, 0, 0, 0.2)"; // Default color if invalid hex
+        }
+
+        int r = Convert.ToInt32(hexColor.Substring(1, 2), 16);
+        int g = Convert.ToInt32(hexColor.Substring(3, 2), 16);
+        int b = Convert.ToInt32(hexColor.Substring(5, 2), 16);
+
+        return $"rgba({r}, {g}, {b}, 0.2)";
+    }
+    #endregion
+
+}
+
+

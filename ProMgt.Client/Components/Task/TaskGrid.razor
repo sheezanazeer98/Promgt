@@ -1,0 +1,564 @@
+﻿@using System.Net.Http.Json
+@using System.Text.Json
+@inject HttpClient HttpClient
+@inject ISnackbar Snackbar
+@inject ProjectService ProjectService
+
+<MudDivider DividerType="DividerType.Middle" Class="mx-0" />
+
+@if (!IsDataLoaded)
+{
+    <TaskGridSkeleton /> 
+}
+else
+{
+<MudSimpleTable Hover="true" Elevation="0" Bordered="true" Style="overflow-x: auto;" Class="custom-table by-1">
+    <thead>
+        <tr>
+            <th></th>
+            <th>Name</th>
+            <th>Description</th>
+            <th>Deadline</th>
+            <th>Assignee</th>
+            <th>Priority</th>
+            <th>Status</th>
+            <th></th>
+
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var task in TaskResponses)
+        {
+            @*This is the tr element i need reference of in my code. how do i access this element*@
+            <tr id="(@task.Id)" onclick="@(()=>rowClickHandler(task.Id))" class="@(task.IsCompleted ? "completed-task" : "")">
+                <td>
+                    <MudTooltip Text="@(task.IsCompleted ? "Mark task incomplete" : "Mark task complete")" Placement="Placement.Top" Delay="600" Arrow="true">
+                        <MudCheckBox @bind-Value="task.IsCompleted"
+                                     Color="@(task.IsCompleted ? Color.Primary : Color.Default)"
+                                     @onclick="()=>UpdateTaskCompletion(task.Id, task.IsCompleted)"
+                                     CheckedIcon="@Icons.Material.Filled.CheckCircle"
+                                     UncheckedIcon="@Icons.Material.Filled.CheckCircleOutline"></MudCheckBox>
+                    </MudTooltip>
+                </td>
+                <td>
+                    <MudTextField T="string"
+                                  @onclick:stopPropagation
+                                  @bind-Value="task.Name"
+                                  OnBlur="()=>UpdateTaskName(task.Id, task.Name)"
+                                  Placeholder="Untitled Task"
+                                  Class="growing-textname"
+                                  Style="@($"width: {CalculateWidth(task.Name)}px;")"
+                                  UnderLine="@(task.Id == _hoveringContent)"
+                                  @onmouseenter="() => OnMouseEnter(task.Id)"
+                                  @onmouseleave="() => OnMouseLeave()"></MudTextField>
+
+                </td>
+                <td>
+                    <MudTextField T="string"
+                                  @onclick:stopPropagation                                    
+                                  @bind-Value="task.Description"
+                                  OnBlur="()=>UpdateTaskDescription(task.Id, task.Description)"
+                                  Placeholder="Add description..."
+                                  Class="growing-textdescription"
+                                  Style="@($"width: {CalculateWidth(task.Name)}px;")"
+                                  UnderLine="@(task.Id == _hoveringContent)"
+                                  @onmouseenter="() => OnMouseEnter(task.Id)"
+                                  @onmouseleave="() => OnMouseLeave()"></MudTextField>
+                </td>
+                <td>
+                    <MudDatePicker Date="@task.DeadLine"
+                                   @onclick:stopPropagation
+                                   DateFormat="dd MMM yyyy"
+                                   DisableUnderLine="true"
+                                   Adornment="Adornment.None"
+                                   InputVariant="Variant.Outlined"
+                                   Margin="Margin.Dense"
+                                   Style="min-width: 120px;"
+                                   UnderLine="false"
+                                   DateChanged="@((DateTime? date)=>OnDateChanged(task.Id, date))" />
+                </td>
+                    <td>
+                     <TaskMember ProjectId="ProjectId" TaskId="@task.Id"/>
+
+                    </td>
+                <td>
+                   <PriorityDropDown ProjectId="ProjectId" TaskId="@task.Id"/>
+                </td>
+
+                <td>
+                   <TaskStatusDropDown ProjectId="ProjectId" TaskId="@task.Id"/>
+                </td>
+                    <td>
+                        <MudIconButton Icon="@Icons.Material.TwoTone.Delete" Size="Size.Small" Style="color: #e32d47;" OnClick="@(() => DeleteTask(task.Id, task.Name))" />
+                    </td>
+            </tr>
+        }
+    </tbody>
+</MudSimpleTable>
+<MudDivider DividerType="DividerType.Middle" Class="mx-0" />
+}
+<style>
+    .completed-task {
+        background-color: rgba(55, 201, 90, 0.12);
+    }
+
+    .custom-table {
+        width: 100%;
+        table-layout: fixed;
+    }
+
+        .custom-table th,
+        .custom-table td {
+            padding: 4px;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+
+            .custom-table th:nth-child(1), 
+            .custom-table td:nth-child(1) {
+                width: 3%; /* Is Completion Status */
+                padding: 4px;
+            }
+
+            .custom-table th:nth-child(2),
+            .custom-table td:nth-child(2) {
+                width: 15%; /* Name */
+                padding: 4px;
+            }
+
+            .custom-table th:nth-child(3),
+            .custom-table td:nth-child(3) {
+                width: 21%; /* Description */
+                padding: 4px;
+            }
+
+            .custom-table th:nth-child(4),
+            .custom-table td:nth-child(4){
+                width: 15%; /* Deadline */
+                padding: 4px;
+            }
+
+            .custom-table th:nth-child(5),
+            .custom-table td:nth-child(5){
+                width: 20%; /* Asignee */
+                padding: 4px;
+            }
+
+            .custom-table th:nth-child(6),
+            .custom-table td:nth-child(6) {
+                width: 12%; /* Priority */
+                padding: 4px;
+            }
+
+            .custom-table th:nth-child(7),
+            .custom-table td:nth-child(7) {
+                width: 12%; /* Status */
+                padding: 4px;
+            }
+
+            .custom-table th:nth-child(8),
+            .custom-table td:nth-child(8) {
+                width: 2%; /* Delete */
+                padding: 4px;
+            }
+
+
+    .growing-textname {
+        transition: width 0.3s ease;
+        min-width: 100px;
+        max-width: 300px;
+    }
+
+    .growing-textdescription {
+        transition: width 0.3s ease;
+        min-width: 100px;
+        max-width: 500px;
+    }
+</style>
+@code {
+    public bool IsDataLoaded { get; set; } = false;
+    private bool firstRender = true;
+
+
+    [Parameter]
+    public int ProjectId { get; set; }
+    public List<TaskDisplay> TasksList { get; set; } = new();
+    public List<TaskResponse> TaskResponses { get; set; } = new();
+    public List<PriorityResponse>? Priorities { get; set; } = new();
+    public List<TaskStatusResponse>? TaskStatuses { get; set; } = new();
+    public int _hoveringContent { get; set; } = 0;
+
+    protected override void OnInitialized()
+    {
+        // Only initialize basic properties here
+        IsDataLoaded = false;
+
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await GetTaskPriorities();
+            await GetTasks();
+            await GetTaskStatuses();
+            IsDataLoaded = true;
+            StateHasChanged();
+        }
+    }
+
+    protected async override Task OnInitializedAsync()
+    {
+        ProjectService.OnNewTaskAddedChanged += UpdateTaskList;
+        ProjectService.TaskInforUpdated += UpdateTaskList;
+        ProjectService.TaskFieldUpdated += UpdateTaskList;
+        ProjectService.OnTaskDeleted += UpdateTaskList;
+        ProjectService.OnTaskAssignementChanged += UpdateTaskList;
+    }
+
+    #region Fetching methods
+    /// <summary>
+    /// This gets tasks.
+    /// </summary>
+    /// <returns></returns>
+    public async Task GetTasks()
+    {
+        try
+        {
+            TasksList.Clear();
+            var response = await HttpClient.GetFromJsonAsync<List<TaskResponse>>($"api/task/projecttask/{ProjectId}");
+            TaskResponses = (response ?? new List<TaskResponse>())
+                .OrderByDescending(t => t.DateOfCreation)
+                .ToList();
+            ProjectService.OnFieldChanges += UpdateFields;
+
+        }
+        catch (HttpRequestException ex)
+        {
+            Console.WriteLine($"Request error: {ex.Message}");
+        }
+        catch (NotSupportedException ex)
+        {
+            Console.WriteLine($"Content type error: {ex.Message}");
+        }
+        catch (JsonException ex)
+        {
+            Console.WriteLine($"JSON error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// This gets all the priorities by project
+    /// </summary>
+    /// <returns></returns>
+    public async Task GetTaskPriorities()
+    {
+        try
+        {
+            if (ProjectId != null)
+            {
+                var response = await HttpClient.GetFromJsonAsync<List<PriorityResponse>>($"api/field/projectpriority/{ProjectId}");
+                Priorities = (response ?? new List<PriorityResponse>())
+                                .ToList();
+
+                StateHasChanged();
+            }
+
+        }
+        catch (HttpRequestException ex)
+        {
+            Console.WriteLine($"Request error: {ex.Message}");
+        }
+        catch (NotSupportedException ex)
+        {
+            Console.WriteLine($"Content type error: {ex.Message}");
+        }
+        catch (JsonException ex)
+        {
+            Console.WriteLine($"JSON error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// This gets all the Statuses by project
+    /// </summary>
+    /// <returns></returns>
+    public async Task GetTaskStatuses()
+    {
+        try
+        {
+            if (ProjectId != null)
+            {
+                var response = await HttpClient.GetFromJsonAsync<List<TaskStatusResponse>>($"api/field/projecttaskstatus/{ProjectId}");
+                TaskStatuses = (response ?? new List<TaskStatusResponse>())
+                                .ToList();
+
+                StateHasChanged();
+            }
+
+        }
+        catch (HttpRequestException ex)
+        {
+            Console.WriteLine($"Request error: {ex.Message}");
+        }
+        catch (NotSupportedException ex)
+        {
+            Console.WriteLine($"Content type error: {ex.Message}");
+        }
+        catch (JsonException ex)
+        {
+            Console.WriteLine($"JSON error: {ex.Message}");
+        }
+    }
+    #endregion
+
+    #region Event Handlers
+    /// <summary>
+    /// This Helps to update the Task Grid when some info is changed.
+    /// </summary>
+    /// <returns></returns>
+    private async Task UpdateTaskList()
+    {
+        await GetTasks();
+        await UpdateFields();
+        StateHasChanged();
+    }
+
+    private async Task UpdateFields()
+    {
+        await GetTaskPriorities();
+        await GetTaskStatuses();
+    }
+
+    public async Task UpdateTaskName(int _taskId, string _newName)
+    {
+        try
+        {
+            var response = await HttpClient.PatchAsync($"api/task/{_taskId}/name", new StringContent(JsonSerializer.Serialize(_newName), System.Text.Encoding.UTF8, "application/json"));
+
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add("Task name updated successfully", MudBlazor.Severity.Success);
+                await ProjectService.TriggerProjectNameUpdated(); // Trigger the event
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                Snackbar.Add("Task not found", MudBlazor.Severity.Error);
+            }
+            else
+            {
+                Snackbar.Add("An error occurred while updating the Task name", MudBlazor.Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error updating Task name: {ex.Message}");
+            Snackbar.Add("An error occurred while updating the Task name", MudBlazor.Severity.Error);
+        }
+    }
+
+    public async Task UpdateTaskDescription(int _taskId, string _newDescription)
+    {
+        try
+        {
+            var response = await HttpClient.PatchAsync($"api/task/{_taskId}/description", new StringContent(JsonSerializer.Serialize(_newDescription), System.Text.Encoding.UTF8, "application/json"));
+
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add("Task description updated successfully", MudBlazor.Severity.Success);
+                await ProjectService.TriggerProjectNameUpdated(); // Trigger the event
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                Snackbar.Add("Task not found", MudBlazor.Severity.Error);
+            }
+            else
+            {
+                Snackbar.Add("An error occurred while updating the Task name", MudBlazor.Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error updating project name: {ex.Message}");
+            Snackbar.Add("An error occurred while updating the project name", MudBlazor.Severity.Error);
+        }
+    }
+
+    public async Task OnDateChanged(int _taskId, DateTime? newDate)
+    {
+        try
+        {
+            var response = await HttpClient.PatchAsync($"api/task/{_taskId}/deadline", new StringContent(JsonSerializer.Serialize(newDate.Value), System.Text.Encoding.UTF8, "application/json"));
+
+
+            if (response.IsSuccessStatusCode)
+            {
+                await GetTasks();
+                Snackbar.Add("Task deadline updated successfully", MudBlazor.Severity.Success);
+                // Trigger the event
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                Snackbar.Add("Task not found", MudBlazor.Severity.Error);
+            }
+            else
+            {
+                Snackbar.Add("An error occurred while updating the Task name", MudBlazor.Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error updating project name: {ex.Message}");
+            Snackbar.Add("An error occurred while updating the project name", MudBlazor.Severity.Error);
+        }
+    }
+
+
+    public async Task UpdateTaskPriorityHandler(int _taskId, int _priorityId)
+    {
+        try
+        {
+            var response = await HttpClient.PatchAsync($"api/task/{_taskId}/priority", new StringContent(JsonSerializer.Serialize(_priorityId), System.Text.Encoding.UTF8, "application/json"));
+
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add("Task priority updated successfully", MudBlazor.Severity.Success);
+                await GetTasks(); // Trigger the event
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                Snackbar.Add("Task not found", MudBlazor.Severity.Error);
+            }
+            else
+            {
+                Snackbar.Add("An error occurred while updating the Task priority", MudBlazor.Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error updating Task name: {ex.Message}");
+            Snackbar.Add("An error occurred while updating the project name", MudBlazor.Severity.Error);
+        }
+    }
+
+    public async Task UpdateTaskStatusHandler(int _taskId, int _statusId)
+    {
+        try
+        {
+            var response = await HttpClient.PatchAsync($"api/task/{_taskId}/taskstatus", new StringContent(JsonSerializer.Serialize(_statusId), System.Text.Encoding.UTF8, "application/json"));
+
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add("Task status updated successfully", MudBlazor.Severity.Success);
+                await GetTasks(); // Trigger the event
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                Snackbar.Add("Task not found", MudBlazor.Severity.Error);
+            }
+            else
+            {
+                Snackbar.Add("An error occurred while updating the Task status", MudBlazor.Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error updating Task name: {ex.Message}");
+            Snackbar.Add("An error occurred while updating the project name", MudBlazor.Severity.Error);
+        }
+    }
+
+    public async Task UpdateTaskCompletion(int _taskId, bool _isCompleted)
+    {
+        bool _newCompletionStatus = !_isCompleted;
+
+        try
+        {
+            var response = await HttpClient.PatchAsync($"api/task/{_taskId}/status", new StringContent(JsonSerializer.Serialize(_newCompletionStatus), System.Text.Encoding.UTF8, "application/json"));
+
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add("Task status updated successfully", MudBlazor.Severity.Success);
+                await GetTasks(); // Trigger the event
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                Snackbar.Add("Task not found", MudBlazor.Severity.Error);
+            }
+            else
+            {
+                Snackbar.Add("An error occurred while updating the Task status", MudBlazor.Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error updating Task name: {ex.Message}");
+            Snackbar.Add("An error occurred while updating the project name", MudBlazor.Severity.Error);
+        }
+    }
+
+    #endregion
+
+    private async Task OnMouseEnter(int _contentId)
+    {
+        _hoveringContent = _contentId;
+        await Task.CompletedTask;
+    }
+
+    private async Task OnMouseLeave()
+    {
+        _hoveringContent = 0;
+        await Task.CompletedTask;
+    }
+
+    private void rowClickHandler(int taskId)
+    {
+        ProjectService.OpenTaskInfoDrawer(ProjectId, taskId);
+        //PassTaskToDrawer();
+        Console.WriteLine(ProjectId);
+        Console.WriteLine(taskId);
+
+    }
+
+    private int CalculateWidth(string _name)
+    {
+        int baseWidth = 100; // Minimum width
+        int maxWidth = 300; // Maximum width
+        int charWidth = 8; // Approximate width per character in pixels
+
+        int calculatedWidth = baseWidth + (_name.Length * charWidth);
+        return Math.Min(Math.Max(calculatedWidth, baseWidth), maxWidth);
+    }
+
+    public async Task DeleteTask(int _taskId, string _taskName)
+    {
+        bool response =  await ProjectService.DeleteTask(_taskId, _taskName);
+        if (response)
+        {
+            Snackbar.Add($"Task \"{_taskName}\" deleted!", MudBlazor.Severity.Error);
+        }
+
+    }
+
+    #region Helper functions
+    /// <summary>
+    /// This converts HexValue to RGB and gives us a color with 20% opacity for MudChip background.
+    /// </summary>
+    /// <param name="hexColor"></param>
+    /// <returns></returns>
+    private string GetBackgroundColor(string hexColor)
+    {
+        if (string.IsNullOrEmpty(hexColor) || !hexColor.StartsWith("#") || hexColor.Length != 7)
+        {
+            return "rgba(0, 0, 0, 0.2)"; // Default color if invalid hex
+        }
+
+        int r = Convert.ToInt32(hexColor.Substring(1, 2), 16);
+        int g = Convert.ToInt32(hexColor.Substring(3, 2), 16);
+        int b = Convert.ToInt32(hexColor.Substring(5, 2), 16);
+
+        return $"rgba({r}, {g}, {b}, 0.2)";
+    }
+    #endregion
+}
+

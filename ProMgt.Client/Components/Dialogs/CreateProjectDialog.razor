@@ -1,0 +1,109 @@
+﻿@using FluentValidation
+@using System.ComponentModel.DataAnnotations
+
+<EditForm Model="@ProjectForm" OnValidSubmit="Submit" OnInvalidSubmit="HandleInvalidSubmit">
+    <DataAnnotationsValidator />
+    @if (ShowMudPaper)
+    {
+        <MudPaper Class="px-8 py-4" Elevation="3">
+            <MudText Color="Color.Error">
+                <ValidationSummary />
+            </MudText>
+        </MudPaper>
+    }
+    <MudDialog Class="fullscreen-dialog">
+        <DialogContent>
+            <MudContainer Style="align-items: center;display: flex;min-height: 85vh;border: 0px solid black;">
+                <MudGrid Justify="Justify.Center">
+                    <MudPaper Outlined="true" Class="rounded-xl" style="min-height: 50vh; min-width: 50vw;">
+                        <MudItem Class="pa-8" xs="12">
+                            <MudText Typo="Typo.h4">
+                                Create a new project
+                            </MudText>
+                        </MudItem>
+                        <MudDivider />
+                        <MudItem Class="mb-4 pa-8" xs="12">
+                            <MudTextField T="string" Immediate="false"
+                                          Label="Project name"
+                                          Variant="Variant.Outlined"
+                                          RequiredError="User name is required!"
+                                          For="@(()=>ProjectForm.Name)"
+                                          @bind-Value="ProjectForm.Name" />
+                        </MudItem>
+
+                        <MudItem Class="mb-4 pa-8">
+                            <MudDatePicker Label="Project end date"
+                                           Variant="Variant.Outlined"
+                                           For="@(()=>ProjectForm.DeadLine)"
+                                           @bind-Date="ProjectForm.DeadLine" />
+                        </MudItem>
+                        <MudSpacer/>
+                        <MudItem Class="pa-8 display-flex justify-end" xs="12">
+                            <MudButton OnClick="Cancel">Cancel</MudButton>
+                            <MudButton Variant="Variant.Outlined" Color="Color.Primary" ButtonType="ButtonType.Submit">Create</MudButton>
+                        </MudItem>
+                    </MudPaper>
+                </MudGrid>
+            </MudContainer>
+        </DialogContent>
+        <DialogActions>
+        </DialogActions>
+    </MudDialog>
+</EditForm>
+
+<style>
+    .fullscreen-dialog {
+        width: 100vw;
+        height: 100vh;
+        max-width: 100vw;
+        max-height: 100vh;
+        transition: all 0.5s ease-in-out;
+    }
+
+    .custom-chip {
+        width: 100px; /* Set your desired width */
+    }
+
+    .blur {
+        backdrop-filter: blur(10px);
+    }
+
+    .dialog-background {
+        background-color: transparent;
+    }
+
+    .dialog-background-title {
+        background: rgb(from var(--mud-palette-primary) r g b / 50%);
+        color: var(--mud-palette-white);
+    }
+
+    .dialog-background-surface {
+        background: rgb(from var(--mud-palette-surface) r g b / 75%);
+    }
+</style>
+
+@code {
+    private bool ShowMudPaper = false;
+    [CascadingParameter]
+    private MudDialogInstance? MudDialog { get; set; }
+    public ProjectCreateModel ProjectForm { get; set; } = new();
+
+    private async void Submit()
+    {
+        if (ProjectForm != null)
+        {
+            await Task.CompletedTask;
+            MudDialog!.Close(DialogResult.Ok(ProjectForm));
+        }
+
+    }
+
+    private void Cancel() => MudDialog!.Cancel();
+
+
+    private void HandleInvalidSubmit()
+    {
+        ShowMudPaper = true;
+        StateHasChanged();
+    }
+}
