@@ -14,7 +14,6 @@ ProMgt is a powerful project management web application built with ASP.NET Core 
 ### Project Management
 - Create and manage multiple projects
 - Update project properties dynamically
-- Flexible project status management
 - Dark/Light mode theme support
 
 ![ProMgt](Dark_theme.PNG)
